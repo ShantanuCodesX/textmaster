@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TextMaster - Ultimate Text Utility</title>
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.20.15/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@4.0.12/marked.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --bg-color: #f5f7fa;
+            --container-bg: #ffffff;
+            --text-color: #2d3748;
+            --button-bg: #3b82f6;
+            --button-hover: #2563eb;
+            --border-color: #d1d5db;
+            --output-bg: #f9fafb;
+            --highlight-bg: #fef08a;
+            --success-bg: #d1fae5;
+            --success-text: #065f46;
+            --error-bg: #fee2e2;
+            --error-text: #991b1b;
+            --font-size: 16px;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #1f2937;
+            --container-bg: #374151;
+            --text-color: #e5e7eb;
+            --button-bg: #60a5fa;
+            --button-hover: #3b82f6;
+            --border-color: #4b5563;
+            --output-bg: #4b5563;
+            --highlight-bg: #6b7280;
+            --success-bg: #065f46;
+            --success-text: #d1fae5;
+            --error-bg: #991b1b;
+            --error-text: #fee2e2;
+        }
+
+        [data-theme="blue"] {
+            --bg-color: #dbeafe;
+            --container-bg: #eff6ff;
+            --text-color: #1e40af;
+            --button-bg: #1e40af;
+            --button-hover: #1e3a8a;
+            --border-color: #93c5fd;
+            --output-bg: #f0f7ff;
+            --highlight-bg: #bfdbfe;
+            --success-bg: #d1fae5;
+            --success-text: #065f46;
+            --error-bg: #fee2e2;
+            --error-text: #991b1b;
+        }
+
+        [data-theme="green"] {
+            --bg-color: #d1fae5;
+            --container-bg: #ecfdf5;
+            --text-color: #065f46;
+            --button-bg: #065f46;
+            --button-hover: #064e3b;
+            --border-color: #6ee7b7;
+            --output-bg: #f0fff4;
+            --highlight-bg: #6ee7b7;
+            --success-bg: #d1fae5;
+            --success-text: #065f46;
+            --error-bg: #fee2e2;
+            --error-text: #991b1b;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: all 0.3s ease;
+        }
+
+        textarea, select, input {
+            background-color: var(--output-bg);
+            color: var(--text-color);
+            border-color: var(--border-color);
+        }
+
+        .highlight-text {
+            background-color: var(--highlight-bg);
+        }
+
+        #output.success {
+            background-color: var(--success-bg);
+            color: var(--success-text);
+        }
+
+        #output.error {
+            background-color: var(--error-bg);
+            color: var(--error-text);
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // Utility functions
+        const dictionary = new Set(['hello', 'world', 'text', 'master', 'javascript', 'html', 'css', 'is', 'the', 'and', 'to', 'for', 'in', 'a']);
+        const positiveWords = new Set(['good', 'great', 'awesome', 'happy', 'excellent', 'wonderful']);
+        const negativeWords = new Set(['bad', 'terrible', 'awful', 'sad', 'poor', 'horrible']);
+
+        const rot13 = (text) => text.replace(/[a-zA-Z]/g, c => {
+            const code = c.charCodeAt(0);
+            const base = code < 97 ? 65 : 97;
+            return String.fromCharCode((code - base + 13) % 26 + base);
+        });
+
+        // Button component
+        const ActionButton = ({ onClick, label, tooltip }) => (
+            <button
+                onClick={onClick}
+                className="px-4 py-3 rounded-lg bg-[var(--button-bg)] text-white hover:bg-[var(--button-hover)] transform hover:scale-105 transition-all text-sm font-medium relative group"
+                aria-label={tooltip}
+            >
+                {label}
+                <span className="absolute top-[-2rem] left-1/2 transform -translate-x-1/2 bg-[var(--text-color)] text-[var(--container-bg)] px-2 py-1 rounded text-xs hidden group-hover:block">{tooltip}</span>
+            </button>
+        );
+
+        // Input Group component
+        const InputGroup = ({ findText, setFindText, replaceText, setReplaceText, highlightText, setHighlightText, regexPattern, setRegexPattern, regexReplace, setRegexReplace, findAndReplace, highlightWords, regexTransform }) => (
+            <div className="flex flex-wrap gap-3 mb-4 p-4 border border-[var(--border-color)] rounded-lg bg-[var(--output-bg)]">
+                <input
+                    type="text"
+                    value={findText}
+                    onChange={(e) => setFindText(e.target.value)}
+                    placeholder="Find..."
+                    className="px-3 py-2 border border-[var(--border-color)] rounded-lg flex-1 min-w-[120px] text-sm"
+                    aria-label="Find text"
+                />
+                <input
+                    type="text"
+                    value={replaceText}
+                    onChange={(e) => setReplaceText(e.target.value)}
+                    placeholder="Replace with..."
+                    className="px-3 py-2 border border-[var(--border-color)] rounded-lg flex-1 min-w-[120px] text-sm"
+                    aria-label="Replace text"
+                />
+                <ActionButton onClick={findAndReplace} label="Find & Replace" tooltip="Find and replace text" />
+                <input
+                    type="text"
+                    value={highlightText}
+                    onChange={(e) => setHighlightText(e.target.value)}
+                    placeholder="Highlight..."
+                    className="px-3 py-2 border border-[var(--border-color)] rounded-lg flex-1 min-w-[120px] text-sm"
+                    aria-label="Highlight text"
+                />
+                <ActionButton onClick={highlightWords} label="Highlight" tooltip="Highlight specific words" />
+                <input
+                    type="text"
+                    value={regexPattern}
+                    onChange={(e) => setRegexPattern(e.target.value)}
+                    placeholder="Regex pattern..."
+                    className="px-3 py-2 border border-[var(--border-color)] rounded-lg flex-1 min-w-[120px] text-sm"
+                    aria-label="Regex pattern"
+                />
+                <input
+                    type="text"
+                    value={regexReplace}
+                    onChange={(e) => setRegexReplace(e.target.value)}
+                    placeholder="Replace with..."
+                    className="px-3 py-2 border border-[var(--border-color)] rounded-lg flex-1 min-w-[120px] text-sm"
+                    aria-label="Regex replacement"
+                />
+                <ActionButton onClick={regexTransform} label="Regex Transform" tooltip="Apply regex transformation" />
+            </div>
+        );
+
+        // Help Modal component
+        const HelpModal = ({ isOpen, toggleHelp }) => (
+            <div className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 ${isOpen ? '' : 'hidden'}`}>
+                <div className="bg-[var(--container-bg)] p-6 rounded-xl max-w-lg max-h-[80vh] overflow-y-auto relative">
+                    <button
+                        onClick={toggleHelp}
+                        className="absolute top-3 right-3 bg-[var(--button-bg)] text-white rounded px-2 py-1"
+                        aria-label="Close help modal"
+                    >
+                        X
+                    </button>
+                    <h2 className="text-2xl font-bold mb-4">TextMaster Help</h2>
+                    <p>Use the tabs to access different features:</p>
+                    <ul className="list-disc pl-5 mb-4">
+                        <li><strong>Transform</strong>: Modify text case, encrypt, or anonymize.</li>
+                        <li><strong>Analysis</strong>: Get word counts, sentiment, or summaries.</li>
+                        <li><strong>Export</strong>: Save text as files or formats.</li>
+                    </ul>
+                    <p><strong>Keyboard Shortcuts</strong>:</p>
+                    <ul className="list-disc pl-5">
+                        <li>Ctrl+U: Uppercase</li>
+                        <li>Ctrl+L: Lowercase</li>
+                        <li>Ctrl+Z: Undo</li>
+                        <li>Ctrl+Y: Redo</li>
+                    </ul>
+                </div>
+            </div>
+        );
+
+        // Main App component
+        const App = () => {
+            const [text, setText] = useState(localStorage.getItem('textmaster') || '');
+            const [history, setHistory] = useState([text]);
+            const [historyIndex, setHistoryIndex] = useState(0);
+            const [activeTab, setActiveTab] = useState('transform');
+            const [findText, setFindText] = useState('');
+            const [replaceText, setReplaceText] = useState('');
+            const [highlightText, setHighlightText] = useState('');
+            const [regexPattern, setRegexPattern] = useState('');
+            const [regexReplace, setRegexReplace] = useState('');
+            const [output, setOutput] = useState({ message: '', isError: false });
+            const [theme, setTheme] = useState('light');
+            const [fontSize, setFontSize] = useState('16');
+            const [language, setLanguage] = useState('en');
+            const [isHelpOpen, setIsHelpOpen] = useState(false);
+            const outputRef = useRef(null);
+
+            useEffect(() => {
+                localStorage.setItem('textmaster', text);
+                document.body.setAttribute('data-theme', theme);
+                document.documentElement.style.setProperty('--font-size', `${fontSize}px`);
+                if (output.message) {
+                    const timeout = setTimeout(() => {
+                        if (!outputRef.current?.innerHTML.includes('<table')) {
+                            setOutput({ message: '', isError: false });
+                        }
+                    }, 3000);
+                    return () => clearTimeout(timeout);
+                }
+            }, [text, theme, fontSize, output]);
+
+            useEffect(() => {
+                const handleKeyDown = (e) => {
+                    if (e.ctrlKey) {
+                        if (e.key === 'u') { e.preventDefault(); toUpperCase(); }
+                        if (e.key === 'l') { e.preventDefault(); toLowerCase(); }
+                        if (e.key === 'z') { e.preventDefault(); undo(); }
+                        if (e.key === 'y') { e.preventDefault(); redo(); }
+                    }
+                    if (e.key === 'Tab' && !e.ctrlKey) {
+                        e.preventDefault();
+                        const tabs = ['transform', 'analysis', 'export'];
+                        const nextIndex = (tabs.indexOf(activeTab) + 1) % tabs.length;
+                        setActiveTab(tabs[nextIndex]);
+                    }
+                };
+                document.addEventListener('keydown', handleKeyDown);
+                return () => document.removeEventListener('keydown', handleKeyDown);
+            }, [activeTab, history, historyIndex]);
+
+            const updateHistory = (newText) => {
+                const newHistory = history.slice(0, historyIndex + 1);
+                newHistory.push(newText);
+                if (newHistory.length > 50) newHistory.shift();
+                setHistory(newHistory);
+                setHistoryIndex(newHistory.length - 1);
+                setText(newText);
+            };
+
+            const showOutput = (message, isError = false) => {
+                setOutput({ message, isError });
+            };
+
+            const toUpperCase = () => {
+                updateHistory(text.toUpperCase());
+                showOutput('Text converted to uppercase.');
+            };
+
+            const toLowerCase = () => {
+                updateHistory(text.toLowerCase());
+                showOutput('Text converted to lowercase.');
+            };
+
+            const sentenceCase = () => {
+                updateHistory(text.replace(/(^\s*\w|[\.\!\?]\s*\w)/g, c => c.toUpperCase()));
+                showOutput('Text converted to sentence case.');
+            };
+
+            const titleCase = () => {
+                updateHistory(text.replace(/\b\w/g, c => c.toUpperCase()));
+                showOutput('Text converted to title case.');
+            };
+
+            const invertCase = () => {
+                updateHistory(text.split('').map(c => c === c.toUpperCase() ? c.toLowerCase() : c.toUpperCase()).join(''));
+                showOutput('Text case inverted.');
+            };
+
+            const removeExtraSpaces = () => {
+                updateHistory(text.replace(/\s+/g, ' ').trim());
+                showOutput('Extra spaces removed.');
+            };
+
+            const copyText = () => {
+                navigator.clipboard.writeText(text);
+                showOutput('Text copied to clipboard.');
+            };
+
+            const clearText = () => {
+                updateHistory('');
+                showOutput('Text cleared.');
+            };
+
+            const undo = () => {
+                if (historyIndex > 0) {
+                    setHistoryIndex(historyIndex - 1);
+                    setText(history[historyIndex - 1] || '');
+                    showOutput('Undo applied.');
+                } else {
+                    showOutput('Nothing to undo.', true);
+                }
+            };
+
+            const redo = () => {
+                if (historyIndex < history.length - 1) {
+                    setHistoryIndex(historyIndex + 1);
+                    setText(history[historyIndex + 1]);
+                    showOutput('Redo applied.');
+                } else {
+                    showOutput('Nothing to redo.', true);
+                }
+            };
+
+            const countWords = () => {
+                const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+                showOutput(`Word count: ${words}`);
+            };
+
+            const countChars = () => {
+                showOutput(`Character count: ${text.length}`);
+            };
+
+            const countLines = () => {
+                const lines = text ? text.split('\n').length : 0;
+                showOutput(`Line count: ${lines}`);
+            };
+
+            const readingTime = () => {
+                const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+                const minutes = Math.ceil(words / 200);
+                showOutput(`Estimated reading time: ${minutes} minute${minutes !== 1 ? 's' : ''}`);
+            };
+
+            const sentenceCount = () => {
+                const sentences = text.trim() ? text.trim().split(/[.!?]+/).filter(s => s.trim()).length : 0;
+                showOutput(`Sentence count: ${sentences}`);
+            };
+
+            const wordFrequency = () => {
+                const words = text.trim().toLowerCase().split(/\s+/).filter(w => w);
+                if (!words.length) {
+                    showOutput('No text to analyze.', true);
+                    return;
+                }
+                const freq = {};
+                words.forEach(word => freq[word] = (freq[word] || 0) + 1);
+                const table = `
+                    <table class="w-full border-collapse">
+                        <tr><th class="border border-[var(--border-color)] p-2">Word</th><th class="border border-[var(--border-color)] p-2">Count</th></tr>
+                        ${Object.entries(freq)
+                            .sort((a, b) => b[1] - a[1])
+                            .map(([word, count]) => `<tr><td class="border border-[var(--border-color)] p-2">${word}</td><td class="border border-[var(--border-color)] p-2">${count}</td></tr>`)
+                            .join('')}
+                    </table>`;
+                outputRef.current.innerHTML = `<div class="max-h-48 overflow-y-auto">${table}</div>`;
+            };
+
+            const readAloud = () => {
+                if (text) {
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.lang = 'en-US';
+                    speechSynthesis.speak(utterance);
+                    showOutput('Reading text aloud...');
+                } else {
+                    showOutput('No text to read.', true);
+                }
+            };
+
+            const encryptText = () => {
+                updateHistory(rot13(text));
+                showOutput('Text encrypted with ROT13.');
+            };
+
+            const decryptText = () => {
+                updateHistory(rot13(text));
+                showOutput('Text decrypted with ROT13.');
+            };
+
+            const checkSpelling = () => {
+                const words = text.trim().toLowerCase().split(/\s+/).filter(w => w);
+                if (!words.length) {
+                    showOutput('No text to check.', true);
+                    return;
+                }
+                const misspelled = words.filter(word => !dictionary.has(word.replace(/[^a-z]/g, '')));
+                if (misspelled.length) {
+                    showOutput(`Possible misspellings: ${[...new Set(misspelled)].join(', ')}`);
+                } else {
+                    showOutput('No spelling errors found.');
+                }
+            };
+
+            const summarizeText = () => {
+                if (!text.trim()) {
+                    showOutput('No text to summarize.', true);
+                    return;
+                }
+                const sentences = text.trim().split(/[.!?]+/).filter(s => s.trim());
+                if (!sentences.length) {
+                    showOutput('No sentences to summarize.', true);
+                    return;
+                }
+                const sortedSentences = sentences
+                    .map(s => ({ text: s.trim(), wordCount: s.split(/\s+/).length }))
+                    .sort((a, b) => b.wordCount - a.wordCount);
+                const summaryLength = Math.ceil(sentences.length * 0.5);
+                const summary = sortedSentences.slice(0, summaryLength).map(s => s.text).join('. ') + (summaryLength > 0 ? '.' : '');
+                updateHistory(summary);
+                showOutput('Text summarized to ~50% length.');
+            };
+
+            const analyzeSentiment = () => {
+                const words = text.trim().toLowerCase().split(/\s+/).filter(w => w);
+                if (!words.length) {
+                    showOutput('No text to analyze.', true);
+                    return;
+                }
+                let score = 0;
+                words.forEach(word => {
+                    if (positiveWords.has(word)) score += 1;
+                    if (negativeWords.has(word)) score -= 1;
+                });
+                let sentiment = 'Neutral';
+                if (score > 0) sentiment = 'Positive';
+                if (score < 0) sentiment = 'Negative';
+                showOutput(`Sentiment: ${sentiment} (Score: ${score})`);
+            };
+
+            const anonymizeText = () => {
+                let newText = text
+                    .replace(/\b[\w\.-]+@[\w\.-]+\.\w+\b/g, '[email]')
+                    .replace(/\b[A-Z][a-z]+ [A-Z][a-z]+\b/g, '[name]');
+                updateHistory(newText);
+                showOutput('Text anonymized (emails and names replaced).');
+            };
+
+            const findAndReplace = () => {
+                if (!findText) {
+                    showOutput('Please enter a term to find.', true);
+                    return;
+                }
+                const newText = text.replaceAll(findText, replaceText);
+                updateHistory(newText);
+                showOutput(`Replaced "${findText}" with "${replaceText}".`);
+                setFindText('');
+                setReplaceText('');
+            };
+
+            const regexTransform = () => {
+                if (!regexPattern) {
+                    showOutput('Please enter a regex pattern.', true);
+                    return;
+                }
+                try {
+                    const newText = text.replace(new RegExp(regexPattern, 'g'), regexReplace);
+                    updateHistory(newText);
+                    showOutput('Regex transformation applied.');
+                    setRegexPattern('');
+                    setRegexReplace('');
+                } catch (e) {
+                    showOutput('Invalid regex pattern.', true);
+                }
+            };
+
+            const highlightWords = () => {
+                if (!highlightText) {
+                    showOutput('Please enter a term to highlight.', true);
+                    return;
+                }
+                const escapedTerm = highlightText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regex = new RegExp(`(${escapedTerm})`, 'gi');
+                const highlighted = text.replace(regex, '<span class="highlight-text">$1</span>');
+                outputRef.current.innerHTML = highlighted;
+                showOutput('Text highlighted in output area.');
+            };
+
+            const downloadText = () => {
+                if (!text) {
+                    showOutput('No text to download.', true);
+                    return;
+                }
+                const blob = new Blob([text], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'textmaster.txt';
+                a.click();
+                URL.revokeObjectURL(url);
+                showOutput('Text downloaded.');
+            };
+
+            const exportMarkdown = () => {
+                if (!text) {
+                    showOutput('No text to export.', true);
+                    return;
+                }
+                const blob = new Blob([text], { type: 'text/markdown' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'textmaster.md';
+                a.click();
+                URL.revokeObjectURL(url);
+                showOutput('Markdown exported.');
+            };
+
+            const exportHTML = () => {
+                if (!text) {
+                    showOutput('No text to export.', true);
+                    return;
+                }
+                const html = text.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<b>$1</b>').replace(/\*(.*?)\*/g, '<i>$1</i>');
+                const blob = new Blob([`<html><body>${html}</body></html>`], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'textmaster.html';
+                a.click();
+                URL.revokeObjectURL(url);
+                showOutput('HTML exported.');
+            };
+
+            const translateText = (lang) => {
+                if (!text) {
+                    showOutput('No text to translate.', true);
+                    return;
+                }
+                updateHistory(`${text} [Translated to ${lang}]`);
+                showOutput(`Text translated to ${lang} (mock). For real translation, use an API.`);
+                setLanguage(lang);
+            };
+
+            return (
+                <div className="max-w-4xl mx-auto bg-[var(--container-bg)] p-6 rounded-xl shadow-lg">
+                    <div className="flex justify-between items-center flex-wrap gap-4 mb-4">
+                        <select
+                            value={theme}
+                            onChange={(e) => setTheme(e.target.value)}
+                            className="px-3 py-2 border border-[var(--border-color)] rounded-lg text-sm"
+                            aria-label="Select theme"
+                        >
+                            <option value="light">Light Theme</option>
+                            <option value="dark">Dark Theme</option>
+                            <option value="blue">Blue Theme</option>
+                            <option value="green">Green Theme</option>
+                        </select>
+                        <select
+                            value={fontSize}
+                            onChange={(e) => setFontSize(e.target.value)}
+                            className="px-3 py-2 border border-[var(--border-color)] rounded-lg text-sm"
+                            aria-label="Select font size"
+                        >
+                            <option value="14">14px</option>
+                            <option value="16">16px</option>
+                            <option value="18">18px</option>
+                            <option value="20">20px</option>
+                        </select>
+                        <select
+                            value={language}
+                            onChange={(e) => translateText(e.target.value)}
+                            className="px-3 py-2 border border-[var(--border-color)] rounded-lg text-sm"
+                            aria-label="Select language for translation"
+                        >
+                            <option value="en">English</option>
+                            <option value="es">Spanish</option>
+                            <option value="fr">French</option>
+                            <option value="de">German</option>
+                        </select>
+                        <ActionButton onClick={() => setIsHelpOpen(true)} label="Help" tooltip="Show help" />
+                    </div>
+                    <h1 className="text-3xl font-bold text-center mb-6">TextMaster</h1>
+                    <textarea
+                        value={text}
+                        onChange={(e) => setText(e.target.value)}
+                        placeholder="Enter your text here..."
+                        className="w-full h-64 mb-4 p-4 border border-[var(--border-color)] rounded-lg resize-y text-base focus:outline-none focus:border-[var(--button-bg)]"
+                        style={{ fontSize: `${fontSize}px` }}
+                        aria-label="Text input area"
+                    />
+                    {(activeTab === 'transform' || activeTab === 'analysis') && (
+                        <InputGroup
+                            findText={findText}
+                            setFindText={setFindText}
+                            replaceText={replaceText}
+                            setReplaceText={setReplaceText}
+                            highlightText={highlightText}
+                            setHighlightText={setHighlightText}
+                            regexPattern={regexPattern}
+                            setRegexPattern={setRegexPattern}
+                            regexReplace={regexReplace}
+                            setRegexReplace={setRegexReplace}
+                            findAndReplace={findAndReplace}
+                            highlightWords={highlightWords}
+                            regexTransform={regexTransform}
+                        />
+                    )}
+                    <div className="mb-4">
+                        <div className="flex gap-2 border-b-2 border-[var(--border-color)] mb-4" role="tablist">
+                            {['Transform', 'Analysis', 'Export'].map(tab => (
+                                <div
+                                    key={tab}
+                                    className={`px-5 py-2 rounded-t-lg cursor-pointer text-sm font-medium ${activeTab === tab.toLowerCase() ? 'bg-[var(--button-bg)] text-white' : 'bg-[var(--output-bg)] hover:bg-[var(--button-hover)] hover:text-white'}`}
+                                    onClick={() => setActiveTab(tab.toLowerCase())}
+                                    role="tab"
+                                    aria-selected={activeTab === tab.toLowerCase()}
+                                    tabIndex={0}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault();
+                                            setActiveTab(tab.toLowerCase());
+                                        }
+                                    }}
+                                >
+                                    {tab}
+                                </div>
+                            ))}
+                        </div>
+                        <div className={activeTab === 'transform' ? '' : 'hidden'}>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                <ActionButton onClick={toUpperCase} label="Uppercase (Ctrl+U)" tooltip="Convert text to uppercase" />
+                                <ActionButton onClick={toLowerCase} label="Lowercase (Ctrl+L)" tooltip="Convert text to lowercase" />
+                                <ActionButton onClick={sentenceCase} label="Sentence Case" tooltip="Convert text to sentence case" />
+                                <ActionButton onClick={titleCase} label="Title Case" tooltip="Convert text to title case" />
+                                <ActionButton onClick={invertCase} label="Invert Case" tooltip="Invert text case" />
+                                <ActionButton onClick={removeExtraSpaces} label="Remove Extra Spaces" tooltip="Remove extra spaces" />
+                                <ActionButton onClick={copyText} label="Copy to Clipboard" tooltip="Copy text to clipboard" />
+                                <ActionButton onClick={clearText} label="Clear Text" tooltip="Clear text" />
+                                <ActionButton onClick={undo} label="Undo (Ctrl+Z)" tooltip="Undo last action" />
+                                <ActionButton onClick={redo} label="Redo (Ctrl+Y)" tooltip="Redo last action" />
+                                <ActionButton onClick={encryptText} label="Encrypt (ROT13)" tooltip="Encrypt text with ROT13" />
+                                <ActionButton onClick={decryptText} label="Decrypt (ROT13)" tooltip="Decrypt text with ROT13" />
+                                <ActionButton onClick={anonymizeText} label="Anonymize Text" tooltip="Anonymize sensitive data" />
+                            </div>
+                        </div>
+                        <div className={activeTab === 'analysis' ? '' : 'hidden'}>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                <ActionButton onClick={countWords} label="Word Count" tooltip="Count words" />
+                                <ActionButton onClick={countChars} label="Character Count" tooltip="Count characters" />
+                                <ActionButton onClick={countLines} label="Line Count" tooltip="Count lines" />
+                                <ActionButton onClick={readingTime} label="Reading Time" tooltip="Estimate reading time" />
+                                <ActionButton onClick={sentenceCount} label="Sentence Count" tooltip="Count sentences" />
+                                <ActionButton onClick={wordFrequency} label="Word Frequency" tooltip="Show word frequency" />
+                                <ActionButton onClick={checkSpelling} label="Check Spelling" tooltip="Check spelling" />
+                                <ActionButton onClick={summarizeText} label="Summarize" tooltip="Summarize text" />
+                                <ActionButton onClick={analyzeSentiment} label="Sentiment Analysis" tooltip="Analyze sentiment" />
+                                <ActionButton onClick={readAloud} label="Read Aloud" tooltip="Read text aloud" />
+                            </div>
+                        </div>
+                        <div className={activeTab === 'export' ? '' : 'hidden'}>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                <ActionButton onClick={downloadText} label="Download Text" tooltip="Download text as file" />
+                                <ActionButton onClick={exportMarkdown} label="Export Markdown" tooltip="Export as Markdown" />
+                                <ActionButton onClick={exportHTML} label="Export HTML" tooltip="Export as HTML" />
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        id="output"
+                        ref={outputRef}
+                        className={`mt-4 p-4 border border-[var(--border-color)] rounded-lg min-h-[60px] transition-all ${output.isError ? 'error' : output.message ? 'success' : ''}`}
+                        aria-live="polite"
+                    >
+                        {output.message}
+                    </div>
+                    <div
+                        id="markdownPreview"
+                        className="mt-4 p-4 border border-[var(--border-color)] rounded-lg min-h-[60px]"
+                        dangerouslySetInnerHTML={{ __html: marked.parse(text || 'Markdown preview will appear here.') }}
+                        aria-label="Markdown preview"
+                    />
+                    <HelpModal isOpen={isHelpOpen} toggleHelp={() => setIsHelpOpen(false)} />
+                </div>
+            );
+        };
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
